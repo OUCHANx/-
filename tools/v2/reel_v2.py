@@ -127,23 +127,43 @@ def build_audio2(r, path, key=0, bpm=96):
 
 
 # ---------------------------------------------------------------- visuals
-def two_tone_line(line, size, base=INK, hi=ORANGE):
+def hook_lines(text):
+    """Split a hook into lines of (segment, highlighted); a quote may continue onto the next line."""
+    out, inq = [], False
+    for line in text.split("\n"):
+        segs, cur, cur_hi = [], "", inq
+        for ch in line:
+            if ch in "「“" and not inq:
+                if cur:
+                    segs.append((cur, cur_hi))
+                cur, inq, cur_hi = ch, True, True
+            elif ch in "」”" and inq:
+                segs.append((cur + ch, True))
+                cur, inq, cur_hi = "", False, False
+            else:
+                cur += ch
+        if cur:
+            segs.append((cur, cur_hi))
+        out.append(segs)
+    return out
+
+
+def two_tone_line(segs, size, base=INK, hi=ORANGE):
     f = ZEN_B(size)
-    segs = [s for s in re.split(r"(「[^」]*」|“[^”]*”)", line) if s]
-    total = sum(f.getlength(s) for s in segs)
+    total = sum(f.getlength(s) for s, _ in segs)
     asc, desc = f.getmetrics()
     im = Image.new("RGBA", (int(total) + 24, asc + desc + 24), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     x = 12
-    for s in segs:
-        d.text((x, 12), s, font=f, fill=hi if s[0] in "「“" else base)
+    for s, h in segs:
+        d.text((x, 12), s, font=f, fill=hi if h else base)
         x += f.getlength(s)
     return im.crop(im.getbbox())
 
 
 def hook_title(text, size=108, max_w=900, min_size=60):
     while True:
-        lines = [two_tone_line(l, size) for l in text.split("\n")]
+        lines = [two_tone_line(segs, size) for segs in hook_lines(text)]
         if max(l.width for l in lines) <= max_w or size <= min_size:
             break
         size -= 4
